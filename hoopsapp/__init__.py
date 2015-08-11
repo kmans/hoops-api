@@ -1,8 +1,6 @@
-from flask import Flask
-from flask_restful import Api
 from flask.ext.sqlalchemy import SQLAlchemy
-
-import hoopsapp.hotfuzz
+from flask import Flask, jsonify, abort, request
+from flask_restful import Resource, Api, marshal_with, fields
 
 #flask app
 app = Flask(__name__)
@@ -17,9 +15,11 @@ app.config.update(
 #init postgres
 db = SQLAlchemy(app)
 
-#must import after db initialized
-import hoopsapp.models
-
-
 #init restFul
 api = Api(app)
+
+#must import after db initialized
+from hoopsapp.models import Teams, Players
+from hoopsapp.hotfuzz import extractOne
+from hoopsapp.api import NBAPlayers, NBATeams, HotFuzzPlayer, HotFuzzTeam, PlayerID, TeamID
+

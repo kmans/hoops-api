@@ -1,9 +1,4 @@
-from flask import Flask, jsonify, abort, request
-from flask_restful import Resource, Api, marshal_with, fields
-#from flask.ext.sqlalchemy import SQLAlchemy
-from hoopsapp import app, db, api
-from hoopsapp.models import Teams, Players
-from hoopsapp.hotfuzz import extractOne
+from hoopsapp import api, Resource, Teams, Players, fields, jsonify, extractOne
 
 
 teams = [t.__dict__ for t in Teams.query.all()]
@@ -102,10 +97,3 @@ api.add_resource(PlayerID, '/api/players/id/<int:playerid>')
 #hotfuzz 
 api.add_resource(HotFuzzTeam, '/api/teams/search/<teamguess>')
 api.add_resource(HotFuzzPlayer, '/api/players/search/<playerguess>')
-
-
-
-#execute
-if __name__ == '__main__':
-	app.run(debug=True)
-
