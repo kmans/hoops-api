@@ -2,6 +2,7 @@ from flask.ext.sqlalchemy import SQLAlchemy
 from flask import Flask, jsonify, abort, request
 from flask_restful import Resource, Api, marshal_with, fields
 
+
 #flask app
 app = Flask(__name__)
 
@@ -21,5 +22,6 @@ api = Api(app)
 #must import after db initialized
 from hoopsapp.models import Teams, Players
 from hoopsapp.hotfuzz import extractOne
+from hoopsapp.hoops import teamdict, playerdict, fixer, PlayersInTeam, TeamPIE, HotFuzzTeam, HotFuzzPlayer
 from hoopsapp.api import NBAPlayers, NBATeams, HotFuzzPlayer, HotFuzzTeam, PlayerID, TeamID
 

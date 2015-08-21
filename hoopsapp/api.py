@@ -1,52 +1,27 @@
-from hoopsapp import api, Resource, Teams, Players, fields, jsonify, extractOne
+from hoopsapp import api, Resource, Teams, Players, fields, jsonify, \
+extractOne, teamdict, playerdict, fixer, PlayersInTeam, TeamPIE, \
+HotFuzzTeam, HotFuzzPlayer
 
-#This function is used to normalize the data
-#Also fixes issues with using map in Python 3
-def fixer(data):
-	for item in data:
-		if item['_sa_instance_state']:
-			del item['_sa_instance_state']
-		elif item['_labels']:
-			del item['_labels']
-	return data
+#sample team IDs: 1610612746, 1610612760, 1610612737
 
 
-#caching these in memory is just faster + less impact on database
-teamdict = dict(Teams.query.with_entities(Teams.TEAM_ID, Teams.TEAM_NAME))
-playerdict = dict(Players.query.with_entities(Players.PLAYER_ID, Players.PLAYER_NAME))
+#/api/search/chikagobullz/brooklennuts and spit out a winner
+class NBAPredictor(Resource):
+	def get(self, team1query, team2query):
+		team1id = HotFuzzTeam(team1query)[2]
+		team2id = HotFuzzTeam(team2query)[2]
 
+		pie1 = TeamPIE(team1id)
+		pie2 = TeamPIE(team2id)
 
-#return json data for all players on a specified team
-class PlayersInTeam(Resource):
+		if pie1 == pie2:
+			winner = 'TIE'
+		elif pie1 > pie2:
+			winner = teamdict[team1id]
+		else:
+			winner = teamdict[team2id]
 
-	#sample team ID for Atlanta Hawks: 1610612737
-
-	def get(self, teamid):
-		data = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=teamid)])
-		return jsonify({teamdict[teamid]: data})
-
-
-#return PIE data + player data for specified teamid's
-class TeamVSTeam(Resource):
-
-	#sample team ID for Atlanta Hawks: 1610612737
-
-	def get(self, team1id, team2id):
-		data1 = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=team1id)])
-		pie1 = float(0)
-		for item in data1:
-			pie1 += item['PIE']
-		pie1 = (pie1 / len(data1)) * 100
-
-		data2 = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=team2id)])
-		pie2 = float(0)
-		for item in data2:
-			pie2 += item['PIE']
-		pie2 = (pie2 / len(data1)) * 100
-
-		return jsonify({'Team PIE %': {teamdict[team1id]: pie1, teamdict[team2id]: pie2}, 'Player Performance': {teamdict[team1id]: data1, teamdict[team2id]: data2}})
-
-
+		return jsonify({'Winner is the '+winner: {teamdict[team1id]: pie1, teamdict[team2id]: pie2}})
 
 
 #get a JSON doc of all of the Teams in the NBA and all of their data
@@ -56,35 +31,6 @@ class NBATeams(Resource):
 		teams = fixer([t.__dict__ for t in Teams.query.all()])
 		return jsonify({'NBA Teams': teams})
 
-class TeamID(Resource):
-	def get(self, teamid):
-		#print "TeamID is being called", teamid
-		data = fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_ID=teamid)])
-		#map(lambda k: k.pop('_sa_instance_state'), data)
-		return jsonify({'Team ID Result': data})
-
-
-'''
-Implemented my HotFuzz module here for fuzzy lookups of players or teams, will return exactly one
-result as a best guess
-'''
-class HotFuzzTeam(Resource):
-	def get(self, teamguess):
-		#print "HotFuzzTeam is being called", teamguess
-		#teamlist = list(Teams.query.with_entities(Teams.TEAM_NAME, Teams.TEAM_ID))
-		teamname = extractOne(teamguess, teamdict)[0]
-		data = fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_NAME=teamname)])
-		return jsonify({teamname: data})
-
-class HotFuzzPlayer(Resource):
-	def get(self, playerguess):
-		#print "HotFuzzPlayer is being called", playerguess
-		#playerlist = list(Players.query.with_entities(Players.PLAYER_NAME, Players.PLAYER_ID))
-		playername = extractOne(playerguess, playerdict)[0]
-		data = fixer([d.__dict__ for d in Players.query.filter_by(PLAYER_NAME=playername)])
-		return jsonify({playername: data})
-
-
 
 #get a JSON doc of all of the Players in the NBA and all of their data
 class NBAPlayers(Resource):
@@ -93,11 +39,55 @@ class NBAPlayers(Resource):
 		return jsonify({'NBA Players': players})
 
 
+
+class TeamID(Resource):
+	def get(self, teamid):
+		if teamid not in teamdict:
+			return jsonify({'ERROR': 'ID NOT FOUND'})
+		else:
+			data = fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_ID=teamid)])
+			return jsonify({'Team ID Result': data})
+
+
 class PlayerID(Resource):
 	def get(self, playerid):
-		#print "PlayerID is being called", playerid
-		data = fixer([d.__dict__ for d in Players.query.filter_by(PLAYER_ID=playerid)])
-		return jsonify({'Player ID Result': data})
+		if playerid not in playerdict:
+			return jsonify({'ERROR': 'ID NOT FOUND'})
+		else:
+			data = fixer([d.__dict__ for d in Players.query.filter_by(PLAYER_ID=playerid)])
+			return jsonify({'Player ID Result': data})
+
+
+#Endpoints implemented for easy json lookups of teams and players via hotfuzz module
+class GuessTeam(Resource):
+	def get(self, teamguess):
+		teamname = extractOne(teamguess, teamdict)[0]
+		data = fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_NAME=teamname)])
+		return jsonify({teamname: data})
+
+class GuessPlayer(Resource):
+	def get(self, playerguess):
+		playername = extractOne(playerguess, playerdict)[0]
+		data = fixer([d.__dict__ for d in Players.query.filter_by(PLAYER_NAME=playername)])
+		return jsonify({playername: data})
+
+
+#return json data for all players on a specified team
+class TeamPlayers(Resource):
+	def get(self, teamid):
+		if teamid not in teamdict:
+			return jsonify({'ERROR': 'ID NOT FOUND'})
+		else:
+			data = PlayersInTeam(teamid)
+			return jsonify({teamdict[teamid]: data})
+
+
+#######################
+###### ENDPOINTS ######
+#######################
+
+#main prediction engine
+api.add_resource(NBAPredictor, '/hoops/<team1query>/<team2query>')
 
 
 #return back a all json data for teams, players
@@ -108,11 +98,11 @@ api.add_resource(NBAPlayers, '/api/players')
 api.add_resource(TeamID, '/api/teams/id/<int:teamid>')
 api.add_resource(PlayerID, '/api/players/id/<int:playerid>')
 
-#fuzzy string matching via hotfuzz module
-api.add_resource(HotFuzzTeam, '/api/teams/search/<teamguess>')
-api.add_resource(HotFuzzPlayer, '/api/players/search/<playerguess>')
+#return a JSON detail of the team or player via hotfuzz 
+api.add_resource(GuessTeam, '/api/teams/name/<teamguess>')
+api.add_resource(GuessPlayer, '/api/players/name/<playerguess>')
 
 
-#NEW - PlayersInTeam
-api.add_resource(PlayersInTeam, '/api/playersinteam/search/<int:teamid>')
-api.add_resource(TeamVSTeam, '/api/teamvsteam/search/<int:team1id>/<int:team2id>')
+#NEW - TeamPlayers
+api.add_resource(TeamPlayers, '/api/teamplayers/id/<int:teamid>')
+

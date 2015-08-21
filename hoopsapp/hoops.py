@@ -1,71 +1,46 @@
+#add to __init__.py: 
+#from hoopsapp.hoops import teamdict, playerdict, fixer, PlayersInTeam, TeamPIE...
 
-#we leave this here to implement later in the API
-#most of this will be ported over to sqlalchemy for use in postgres 
+from hoopsapp import Teams, Players, extractOne
 
-#import hotfuzz
-#import sqlite3
+#helpful to have these in memory to quickly lookup a player or team name
+teamdict = dict(Teams.query.with_entities(Teams.TEAM_ID, Teams.TEAM_NAME))
+playerdict = dict(Players.query.with_entities(Players.PLAYER_ID, Players.PLAYER_NAME))
 
-#import populate
-
-
-#will not refresh data if less than 2 weeks old, but you can make this longer or shorter based on preference
-#datarefreshtime = 1209600
-
-#set the global connection to our database
-db = sqlite3.connect('hoops.db')
-
-#set the initial cursor to our database
-cur = db.cursor()
-
-#cur.execute('''SELECT TEAM_ID, TEAM_NAME FROM teams''')
-#teams = dict(cur.fetchall())
+def fixer(data):
+    for item in data:
+        if item['_sa_instance_state']:
+            del item['_sa_instance_state']
+        elif item['_labels']:
+            del item['_labels']
+    return data
 
 
+def PlayersInTeam(teamid):
+    return fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=teamid)])
 
-class Team(object):
+
+#this basically averages the PIE value for each participating player on the team
+#the PIE value is what determines the winner
+#This must be changed to recognize starting lineup data... 
+def TeamPIE(teamid):
+
+    teamdata = PlayersInTeam(teamid)
+    #first we use map to get a list of just PIE values
+    #then we use list comprehension to leave just the non-zero values
+    teampie = [x for x in list(map(lambda k: k['PIE'], teamdata)) if x>0.0]
+
+    #we calculate the resulting average and get the PIE percentage
+    return float(sum(teampie)) / len(teampie) * 100
+
+
+#helper functions to tap into hotfuzz 
+def HotFuzzTeam(teamguess):
+    #returns a tuple, index [0] is for teamname, index [2] is for teamID
+    return extractOne(teamguess, teamdict)
     
-    def __init__(self, query):
+    #return fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_NAME=teamname)])
 
-        self.team_id, self.team_name = self.getteam(query)
-        self.players = self.getplayers()
-        self.teampie = self.getteampie()
-                           
-
-    def getteam(self, query):
-        
-        #flips the team_name and team_id around in a new dict for using fuzzylogic
-        cur.execute('''SELECT TEAM_NAME, TEAM_ID FROM teams''')
-        teams = dict(cur.fetchall())
-
-        #Teams.query.with_entities(Teams.TEAM_NAME, Teams.TEAM_ID)
-
-        #hotfuzz.extractOne will basically correct even the worst spelling issues
-        team_name = hotfuzz.extractOne(query,teams.keys())[0]        
-        return teams[team_name], team_name
-
-
-    def getplayers(self):
-        
-        #we will grab all of the players data for the selected team    
-        cur.execute('''SELECT PLAYER_ID, PLAYER_NAME, PST, AST, REB, PIE FROM players WHERE TEAM_ID = (?)''', (self.team_id,))
-        return cur.fetchall()
-
-    def getteampie(self):
-
-        #assign PIE value to the current team
-        cur.execute('''SELECT PIE FROM teams WHERE TEAM_ID = (?)''', (self.team_id,))
-        return float(cur.fetchone()[0])*100
-
-    def getotherstats(self):
-        pass
-
-
-    #We can call on these two methods to refresh our data from the nba when we need to
-
-    def refresh_teams(self):
-        populate._create_team_data()
-
-    def refresh_players(self):
-        populate._create_player_data(self.team_id)
-
-
+def HotFuzzPlayer(playerguess):
+    #returns a tuple, index [0] is for playername, index [2] is for playerID
+    return extractOne(playerguess, playerdict)    
