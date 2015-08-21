@@ -10,32 +10,50 @@ def fixer(data):
 			del item['_labels']
 	return data
 
-teams = fixer([t.__dict__ for t in Teams.query.all()])
-#print(teams[0:3])
 
-#gathering data as a list...
-#test = list(Teams.query.with_entities(Teams.TEAM_NAME, Teams.TEAM_ID))
-#print(test)
+#caching these in memory is just faster + less impact on database
+teamdict = dict(Teams.query.with_entities(Teams.TEAM_ID, Teams.TEAM_NAME))
+playerdict = dict(Players.query.with_entities(Players.PLAYER_ID, Players.PLAYER_NAME))
 
-#This may not be needed...
-'''
-Team_resource_fields = {
-	
-	'TEAM_ID': fields.Integer,
-	'TEAM_NAME': fields.String,
-	'PIE': fields.Float,
-}
-'''
+
+#return json data for all players on a specified team
+class PlayersInTeam(Resource):
+
+	#sample team ID for Atlanta Hawks: 1610612737
+
+	def get(self, teamid):
+		data = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=teamid)])
+		return jsonify({teamdict[teamid]: data})
+
+
+#return PIE data + player data for specified teamid's
+class TeamVSTeam(Resource):
+
+	#sample team ID for Atlanta Hawks: 1610612737
+
+	def get(self, team1id, team2id):
+		data1 = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=team1id)])
+		pie1 = float(0)
+		for item in data1:
+			pie1 += item['PIE']
+		pie1 = (pie1 / len(data1)) * 100
+
+		data2 = fixer([d.__dict__ for d in Players.query.filter_by(TEAM_ID=team2id)])
+		pie2 = float(0)
+		for item in data2:
+			pie2 += item['PIE']
+		pie2 = (pie2 / len(data1)) * 100
+
+		return jsonify({'Team PIE %': {teamdict[team1id]: pie1, teamdict[team2id]: pie2}, 'Player Performance': {teamdict[team1id]: data1, teamdict[team2id]: data2}})
+
+
 
 
 #get a JSON doc of all of the Teams in the NBA and all of their data
 class NBATeams(Resource):
 	def get(self):
 		
-		#return {'hello': 'world'}
-		#return json.dumps([t.__dict__ for t in Teams.query.all()])
 		teams = fixer([t.__dict__ for t in Teams.query.all()])
-		#map(lambda k: k.pop('_sa_instance_state'), teams)
 		return jsonify({'NBA Teams': teams})
 
 class TeamID(Resource):
@@ -53,18 +71,18 @@ result as a best guess
 class HotFuzzTeam(Resource):
 	def get(self, teamguess):
 		#print "HotFuzzTeam is being called", teamguess
-		teamlist = list(Teams.query.with_entities(Teams.TEAM_NAME, Teams.TEAM_ID))
-		teamname = extractOne(teamguess, teamlist)[0][0]
+		#teamlist = list(Teams.query.with_entities(Teams.TEAM_NAME, Teams.TEAM_ID))
+		teamname = extractOne(teamguess, teamdict)[0]
 		data = fixer([d.__dict__ for d in Teams.query.filter_by(TEAM_NAME=teamname)])
-		return jsonify({'Result for Teamname lookup': data})
+		return jsonify({teamname: data})
 
 class HotFuzzPlayer(Resource):
 	def get(self, playerguess):
 		#print "HotFuzzPlayer is being called", playerguess
-		playerlist = list(Players.query.with_entities(Players.PLAYER_NAME, Players.PLAYER_ID))
-		playername = extractOne(playerguess, playerlist)[0][0]
+		#playerlist = list(Players.query.with_entities(Players.PLAYER_NAME, Players.PLAYER_ID))
+		playername = extractOne(playerguess, playerdict)[0]
 		data = fixer([d.__dict__ for d in Players.query.filter_by(PLAYER_NAME=playername)])
-		return jsonify({'Result for Playername lookup': data})
+		return jsonify({playername: data})
 
 
 
@@ -93,3 +111,8 @@ api.add_resource(PlayerID, '/api/players/id/<int:playerid>')
 #fuzzy string matching via hotfuzz module
 api.add_resource(HotFuzzTeam, '/api/teams/search/<teamguess>')
 api.add_resource(HotFuzzPlayer, '/api/players/search/<playerguess>')
+
+
+#NEW - PlayersInTeam
+api.add_resource(PlayersInTeam, '/api/playersinteam/search/<int:teamid>')
+api.add_resource(TeamVSTeam, '/api/teamvsteam/search/<int:team1id>/<int:team2id>')
