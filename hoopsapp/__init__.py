@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 #setup configs
 app.config.update(
-	SECRET_KEY = 'N6$pDhsRKxmB12!xDjpCBJ2H15#cJdiZcj',
+	SECRET_KEY = 'N6$pDhsRKxmB12!65654BJ2H15#cJdiZcj',
 	SQLALCHEMY_DATABASE_URI = 'postgresql+psycopg2://kamil:STteK8z2W3QvP7mWP0S8l6IHI1iSR@kamilodb.cork9gwkg1mu.us-east-1.rds.amazonaws.com/mydb',
 	STATIC_ROOT = None,
 	)
